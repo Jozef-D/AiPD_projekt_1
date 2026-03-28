@@ -14,6 +14,8 @@ from src import (
     detect_silence,
     compute_pitch,
     classify_voiced_unvoiced,
+    parameters_to_csv,
+    parameters_over_clip
 )
 
 st.set_page_config(page_title="Analiza audio – dziedzina czasu", layout="wide")
@@ -69,7 +71,7 @@ st.markdown(
     f"**Hop:** {params['hop']}"
 )
 
-fig2, axes = plt.subplots(3, 1, figsize=(14, 7), sharex=True)
+fig2, axes = plt.subplots(4, 1, figsize=(14, 9), sharex=True)
 
 axes[0].plot(ft, params['volume'], color='#e74c3c', linewidth=0.8)
 axes[0].set_ylabel("Volume (RMS)")
@@ -83,19 +85,24 @@ axes[1].grid(True, alpha=0.3)
 
 axes[2].plot(ft, params['zcr'], color='#3498db', linewidth=0.8)
 axes[2].set_ylabel("ZCR")
-axes[2].set_xlabel("Czas [s]")
 axes[2].set_title("Zero Crossing Rate")
 axes[2].grid(True, alpha=0.3)
 
+axes[3].plot(ft, params['energy_entropy'], color='#9b59b6', linewidth=0.8)
+axes[3].set_ylabel("Entropia")
+axes[3].set_xlabel("Czas [s]")
+axes[3].set_title("Entropia energii")
+axes[3].grid(True, alpha=0.3)
 plt.tight_layout()
 st.pyplot(fig2)
 
 st.subheader("Statystyki parametrów")
-s1, s2, s3 = st.columns(3)
+s1, s2, s3, s4 = st.columns(4)
 for col, name, data in [
     (s1, "Volume (RMS)", params['volume']),
     (s2, "STE", params['ste']),
     (s3, "ZCR", params['zcr']),
+    (s4, "Energy Entropy", params['energy_entropy']),
 ]:
     with col:
         st.markdown(f"**{name}**")
@@ -227,3 +234,46 @@ ax5.set_title("Klasyfikacja: dźwięczne / bezdźwięczne / cisza")
 ax5.set_xlim(0, duration)
 ax5.grid(True, alpha=0.3)
 st.pyplot(fig5)
+
+f0_for_csv = f0_auto if f0_auto is not None else f0_amdf
+
+csv_df = parameters_to_csv(
+    samples, sr, frame_ms, overlap,
+    f0=f0_for_csv,
+    vol_threshold=threshold,
+    zcr_threshold=zcr_thresh,  # zcr_thresh jest zdefiniowany niżej!
+)
+
+st.download_button(
+    label="⬇Pobierz parametry jako CSV",
+    data=csv_df.to_csv(index=False).encode("utf-8"),
+    file_name=f"{uploaded.name.replace('.wav', '')}_params.csv",
+    mime="text/csv",
+)
+
+st.markdown("---")
+st.subheader("Parametry na poziomie klipu")
+
+
+clip_params = parameters_over_clip(samples, sr, frame_ms, overlap)
+
+if clip_params is not None:
+    cp1, cp2, cp3, cp4 = st.columns(4)
+    cp1.metric("LSTER", f"{clip_params['lster']:.4f}",
+               help="Odsetek ramek z STE poniżej 50% średniej — wysoka wartość sugeruje mowę")
+    cp2.metric("HZCRR", f"{clip_params['hzcrr']:.4f}",
+               help="Odsetek ramek z ZCR powyżej 150% średniej — wysoka wartość sugeruje muzykę/szum")
+    cp3.metric("ZSTD", f"{clip_params['zstd']:.6f}",
+               help="Odchylenie std ZCR — miara zmienności sygnału")
+    cp4.metric("Energy Entropy", f"{clip_params['energy_entropy']:.4f}",
+               help="Entropia rozkładu energii między ramkami")
+
+
+    # Prosta interpretacja muzyka vs mowa ( turbo nie działa)
+    st.markdown("#### Klasyfikacja muzyka / mowa")
+    if clip_params['lster'] > 0.13 and clip_params['hzcrr'] < 0.13:
+        st.success("Sygnał przypomina **mowę**")
+    elif clip_params['lster'] < 0.13 and clip_params['hzcrr'] > 0.13:
+        st.info("Sygnał przypomina **muzykę**")
+    else:
+        st.warning("Sygnał **niejednoznaczny** (mowa + muzyka lub szum)")
