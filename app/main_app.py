@@ -59,7 +59,9 @@ col_a, col_b = st.columns(2)
 frame_ms = col_a.slider("Długość ramki [ms]", 10, 100, 20, step=5)
 overlap = col_b.slider("Overlap", 0.0, 0.9, 0.5, step=0.1)
 
-params = compute_all_params(samples, sr, frame_ms, overlap)
+include_spectral = st.checkbox("Pokaż parametry spektralne", value=True)
+
+params = compute_all_params(samples, sr, frame_ms, overlap, include_spectral=include_spectral)
 if params is None:
     st.warning("Sygnał za krótki.")
     st.stop()
@@ -71,39 +73,80 @@ st.markdown(
     f"**Hop:** {params['hop']}"
 )
 
-fig2, axes = plt.subplots(4, 1, figsize=(14, 9), sharex=True)
+num_plots = 4 + (3 if include_spectral else 0)
+fig2, axes = plt.subplots(num_plots, 1, figsize=(21, 9), sharex=True)
 
-axes[0].plot(ft, params['volume'], color='#e74c3c', linewidth=0.8)
-axes[0].set_ylabel("Volume (RMS)")
-axes[0].set_title("Głośność")
-axes[0].grid(True, alpha=0.3)
+if num_plots == 1:
+    axes = [axes]
 
-axes[1].plot(ft, params['ste'], color='#2ecc71', linewidth=0.8)
-axes[1].set_ylabel("STE")
-axes[1].set_title("Energia krótkoterminowa")
-axes[1].grid(True, alpha=0.3)
 
-axes[2].plot(ft, params['zcr'], color='#3498db', linewidth=0.8)
-axes[2].set_ylabel("ZCR")
-axes[2].set_title("Zero Crossing Rate")
-axes[2].grid(True, alpha=0.3)
+i = 0
 
-axes[3].plot(ft, params['energy_entropy'], color='#9b59b6', linewidth=0.8)
-axes[3].set_ylabel("Entropia")
-axes[3].set_xlabel("Czas [s]")
-axes[3].set_title("Entropia energii")
-axes[3].grid(True, alpha=0.3)
+axes[i].plot(ft, params['volume'], color='#e74c3c', linewidth=0.8)
+axes[i].set_ylabel("Volume (RMS)")
+axes[i].set_title("Głośność")
+axes[i].grid(True, alpha=0.3)
+i += 1
+
+axes[i].plot(ft, params['ste'], color='#2ecc71', linewidth=0.8)
+axes[i].set_ylabel("STE")
+axes[i].set_title("Energia krótkoterminowa")
+axes[i].grid(True, alpha=0.3)
+i += 1
+
+axes[i].plot(ft, params['zcr'], color='#3498db', linewidth=0.8)
+axes[i].set_ylabel("ZCR")
+axes[i].set_title("Zero Crossing Rate")
+axes[i].grid(True, alpha=0.3)
+i += 1
+
+axes[i].plot(ft, params['energy_entropy'], color='#9b59b6', linewidth=0.8)
+axes[i].set_ylabel("Entropia")
+axes[i].set_title("Entropia energii")
+axes[i].grid(True, alpha=0.3)
+i += 1
+
+if include_spectral:
+    axes[i].plot(ft, params['spectral_centroid'], color='#6bb04f', linewidth=0.8)
+    axes[i].set_ylabel("Śr. Cężkości Widma")
+    axes[i].set_title("Środek Cężkości Widma")
+    axes[i].grid(True, alpha=0.3)
+    i += 1
+
+    axes[i].plot(ft, params['spectral_rolloff'], color='#6bb04f', linewidth=0.8)
+    axes[i].set_ylabel("Cz. Graniczna Widma")
+    axes[i].set_title("Częstotliwość Graniczna Widma")
+    axes[i].grid(True, alpha=0.3)
+    i += 1
+
+    axes[i].plot(ft, params['spectral_flatness'], color='#e3aca7', linewidth=0.8)
+    axes[i].set_ylabel("Płaskość Widma")
+    axes[i].set_xlabel("Czas [s]")
+    axes[i].set_title("Płaskość Widma")
+    axes[i].grid(True, alpha=0.3)
+else:
+    axes[i-1].set_xlabel("Czas [s]")
 plt.tight_layout()
 st.pyplot(fig2)
 
 st.subheader("Statystyki parametrów")
-s1, s2, s3, s4 = st.columns(4)
-for col, name, data in [
-    (s1, "Volume (RMS)", params['volume']),
-    (s2, "STE", params['ste']),
-    (s3, "ZCR", params['zcr']),
-    (s4, "Energy Entropy", params['energy_entropy']),
-]:
+stats_list = [
+    ("Volume (RMS)", params['volume']),
+    ("STE", params['ste']),
+    ("ZCR", params['zcr']),
+    ("Energy Entropy", params['energy_entropy']),
+]
+
+if include_spectral:
+    stats_list.extend([
+        ("Spectral Centroid", params['spectral_centroid']),
+        ("Spectral Rolloff", params['spectral_rolloff']),
+        ("Spectral Flatness", params['spectral_flatness']),
+    ])
+
+cols = st.columns(len(stats_list))
+
+for col, (name, data) in zip(cols, stats_list):
     with col:
         st.markdown(f"**{name}**")
         st.write(f"Średnia: {np.mean(data):.6f}")
@@ -241,7 +284,9 @@ csv_df = parameters_to_csv(
     samples, sr, frame_ms, overlap,
     f0=f0_for_csv,
     vol_threshold=threshold,
-    zcr_threshold=zcr_thresh,  # zcr_thresh jest zdefiniowany niżej!
+    zcr_threshold=zcr_thresh,
+    params = params,
+
 )
 
 st.download_button(
@@ -257,7 +302,7 @@ st.subheader("Parametry na poziomie klipu")
 
 clip_params = parameters_over_clip(samples, sr, frame_ms, overlap)
 
-if clip_params is not None:
+if clip_params is not None and params is not None:
     cp1, cp2, cp3, cp4 = st.columns(4)
     cp1.metric("LSTER", f"{clip_params['lster']:.4f}",
                help="Odsetek ramek z STE poniżej 50% średniej — wysoka wartość sugeruje mowę")
@@ -268,12 +313,61 @@ if clip_params is not None:
     cp4.metric("Energy Entropy", f"{clip_params['energy_entropy']:.4f}",
                help="Entropia rozkładu energii między ramkami")
 
-
-    # Prosta interpretacja muzyka vs mowa ( turbo nie działa)
     st.markdown("#### Klasyfikacja muzyka / mowa")
-    if clip_params['lster'] > 0.13 and clip_params['hzcrr'] < 0.13:
-        st.success("Sygnał przypomina **mowę**")
-    elif clip_params['lster'] < 0.13 and clip_params['hzcrr'] > 0.13:
-        st.info("Sygnał przypomina **muzykę**")
+
+    score = 0  # ujemny = mowa, dodatni = muzyka
+
+    if clip_params['lster'] > 0.13:
+        score -= 1
     else:
-        st.warning("Sygnał **niejednoznaczny** (mowa + muzyka lub szum)")
+        score += 1
+
+    if clip_params['hzcrr'] > 0.13:
+        score += 1
+    else:
+        score -= 1
+
+    if np.mean(params['zcr']) > 0.05:
+        score += 1
+    else:
+        score -= 1
+
+
+    if np.mean(params['spectral_centroid']) > 1800:
+        score += 1
+    else:
+        score -= 1
+
+    if np.std(params['spectral_centroid']) > 500:
+        score += 1
+    else:
+        score -= 1
+
+    if np.mean(params['spectral_rolloff']) > 3000:
+        score += 1
+    else:
+        score -= 1
+
+    if np.std(params['spectral_rolloff']) > 800:
+        score += 1
+    else:
+        score -= 1
+
+    if np.mean(params['spectral_flatness']) > 0.2:
+        score += 2
+    else:
+        score -= 2
+
+
+    st.metric("Wynik klasyfikacji", score, help="< 0 = mowa, > 0 = muzyka")
+
+    if score <= -2:
+        st.success("Sygnał przypomina **mowę**")
+    elif score >= 2:
+        st.info("Sygnał przypomina **muzykę**")
+    elif score < 0:
+        st.success("Prawdopodobnie **mowa** (niskie zaufanie)")
+    elif score > 0:
+        st.info("Prawdopodobnie **muzyka** (niskie zaufanie)")
+    else:
+        st.warning("Sygnał **niejednoznaczny**")
