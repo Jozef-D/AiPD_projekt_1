@@ -109,13 +109,13 @@ i += 1
 if include_spectral:
     axes[i].plot(ft, params['spectral_centroid'], color='#6bb04f', linewidth=0.8)
     axes[i].set_ylabel("Śr. Cężkości Widma")
-    axes[i].set_title("Środek Cężkości Widma")
+    axes[i].set_title("Środek ciężkości widma")
     axes[i].grid(True, alpha=0.3)
     i += 1
 
     axes[i].plot(ft, params['spectral_rolloff'], color='#6bb04f', linewidth=0.8)
     axes[i].set_ylabel("Cz. Graniczna Widma")
-    axes[i].set_title("Częstotliwość Graniczna Widma")
+    axes[i].set_title("Częstotliwość graniczna widma")
     axes[i].grid(True, alpha=0.3)
     i += 1
 
@@ -315,7 +315,7 @@ if clip_params is not None and params is not None:
 
     st.markdown("#### Klasyfikacja muzyka / mowa")
 
-    score = 0  # ujemny = mowa, dodatni = muzyka
+    score = 0  # ujemny = mowa, dodatni = muzyka ( przynajmniej w teorii)
 
     if clip_params['lster'] > 0.13:
         score -= 1
@@ -332,31 +332,32 @@ if clip_params is not None and params is not None:
     else:
         score -= 1
 
+    if include_spectral:
 
-    if np.mean(params['spectral_centroid']) > 1800:
-        score += 1
-    else:
-        score -= 1
+        if np.mean(params['spectral_centroid']) > 1800:
+            score += 1
+        else:
+            score -= 1
 
-    if np.std(params['spectral_centroid']) > 500:
-        score += 1
-    else:
-        score -= 1
+        if np.std(params['spectral_centroid']) > 500:
+            score += 1
+        else:
+            score -= 1
 
-    if np.mean(params['spectral_rolloff']) > 3000:
-        score += 1
-    else:
-        score -= 1
+        if np.mean(params['spectral_rolloff']) > 3000:
+            score += 1
+        else:
+            score -= 1
 
-    if np.std(params['spectral_rolloff']) > 800:
-        score += 1
-    else:
-        score -= 1
+        if np.std(params['spectral_rolloff']) > 800:
+            score += 1
+        else:
+            score -= 1
 
-    if np.mean(params['spectral_flatness']) > 0.2:
-        score += 2
-    else:
-        score -= 2
+        if np.mean(params['spectral_flatness']) > 0.2:
+            score += 2
+        else:
+            score -= 2
 
 
     st.metric("Wynik klasyfikacji", score, help="< 0 = mowa, > 0 = muzyka")
