@@ -2,8 +2,12 @@ import numpy as np
 import pandas as pd
 import math
 
+
 def manual_dft(frame):
     N = len(frame)
+    window = [0.5 * (1 - math.cos(2 * math.pi * n / (N - 1))) for n in range(N)]
+    frame = [frame[n] * window[n] for n in range(N)]
+
     half = N // 2 + 1
     spectrum = []
     for k in range(half):
@@ -13,7 +17,7 @@ def manual_dft(frame):
             angle = 2 * math.pi * k * n / N
             re += frame[n] * math.cos(angle)
             im -= frame[n] * math.sin(angle)
-        spectrum.append((re**2 + im**2) ** 0.5)
+        spectrum.append((re ** 2 + im ** 2) ** 0.5)
     return spectrum
 
 
@@ -50,6 +54,9 @@ def spectral_rolloff(frame, sample_rate, threshold=0.85):
 def spectral_flatness(frame, eps=1e-10):
     spectrum = manual_dft(frame)
     spectrum = np.array(spectrum) + eps
+
+    if np.max(spectrum) < 1e-6:
+        return 0.0
 
     geo_mean = np.exp(np.mean(np.log(spectrum)))
     arith_mean = np.mean(spectrum)
