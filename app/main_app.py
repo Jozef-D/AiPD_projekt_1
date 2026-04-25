@@ -15,12 +15,19 @@ from src import (
     compute_pitch,
     classify_voiced_unvoiced,
     parameters_to_csv,
-    parameters_over_clip
+    parameters_over_clip,
+    WINDOWS,
+    apply_window,
+    compute_fft,
+    compute_fft_for_frame,
+    compute_spectrogram,
+    compute_cepstrum,
+    compute_cepstral_f0,
 )
 
-st.set_page_config(page_title="Analiza audio – dziedzina czasu", layout="wide")
-st.title("Cechy sygnału audio w dziedzinie czasu")
-st.markdown("**Projekt 1** — Analiza i przetwarzanie dźwięku 2025/26")
+st.set_page_config(page_title="Analiza audio", layout="wide")
+st.title("Analiza sygnału audio")
+st.markdown("**Projekt 1 + 2** — Analiza i przetwarzanie dźwięku 2025/26")
 
 uploaded = st.file_uploader("Wczytaj plik .wav", type=["wav"])
 
@@ -372,3 +379,237 @@ if clip_params is not None and params is not None:
         st.info("Prawdopodobnie **muzyka** (niskie zaufanie)")
     else:
         st.warning("Sygnał **niejednoznaczny**")
+
+
+st.markdown("---")
+st.markdown("## Projekt 2 — Analiza częstotliwościowa")
+
+st.subheader("Widmo FFT całego sygnału")
+
+window_names = list(WINDOWS.keys())
+fft_window = st.selectbox("Funkcja okienkowa (cały sygnał)", window_names, key="fft_whole")
+
+freqs_whole, mag_whole, mag_db_whole, windowed_whole, win_whole = compute_fft(
+    samples, sr, fft_window
+)
+
+fig_fft_whole, (ax_fft1, ax_fft2) = plt.subplots(2, 1, figsize=(14, 6))
+
+ax_fft1.plot(freqs_whole, mag_whole, linewidth=0.5, color='#e74c3c')
+ax_fft1.set_ylabel("Amplituda")
+ax_fft1.set_title(f"Widmo FFT — skala liniowa (okno: {fft_window})")
+ax_fft1.grid(True, alpha=0.3)
+
+ax_fft2.plot(freqs_whole, mag_db_whole, linewidth=0.5, color='#3498db')
+ax_fft2.set_xlabel("Częstotliwość [Hz]")
+ax_fft2.set_ylabel("Amplituda [dB]")
+ax_fft2.set_title(f"Widmo FFT — skala dB (okno: {fft_window})")
+ax_fft2.grid(True, alpha=0.3)
+
+plt.tight_layout()
+st.pyplot(fig_fft_whole)
+
+st.subheader("Widmo FFT wybranej ramki")
+
+col_fr, col_fw = st.columns(2)
+frame_idx = col_fr.slider("Numer ramki", 0, params['num_frames'] - 1, 0, step=1)
+frame_window = col_fw.selectbox("Funkcja okienkowa (ramka)", window_names, key="fft_frame")
+
+frame_start = frame_idx * params['hop']
+frame_end = frame_start + params['frame_len']
+frame_time_start = frame_start / sr
+frame_time_end = frame_end / sr
+st.markdown(f"Ramka **{frame_idx}**: {frame_time_start:.4f} s – {frame_time_end:.4f} s")
+
+freqs_fr, mag_fr, mag_db_fr, windowed_fr, win_fr = compute_fft_for_frame(
+    samples, sr, frame_idx, params['frame_len'], params['hop'], frame_window
+)
+
+frame_signal = samples[frame_start:frame_end]
+frame_time_ax = np.arange(len(frame_signal)) / sr + frame_time_start
+
+fig_frame_fft, axes_fr = plt.subplots(2, 2, figsize=(14, 7))
+
+axes_fr[0, 0].plot(frame_time_ax, frame_signal, linewidth=0.8, color='steelblue')
+axes_fr[0, 0].set_title("Ramka — oryginalna")
+axes_fr[0, 0].set_xlabel("Czas [s]")
+axes_fr[0, 0].set_ylabel("Amplituda")
+axes_fr[0, 0].grid(True, alpha=0.3)
+
+axes_fr[0, 1].plot(frame_time_ax, windowed_fr, linewidth=0.8, color='#2ecc71')
+axes_fr[0, 1].set_title(f"Ramka po oknie: {frame_window}")
+axes_fr[0, 1].set_xlabel("Czas [s]")
+axes_fr[0, 1].set_ylabel("Amplituda")
+axes_fr[0, 1].grid(True, alpha=0.3)
+
+axes_fr[1, 0].plot(freqs_fr, mag_fr, linewidth=0.8, color='#e74c3c')
+axes_fr[1, 0].set_title("Widmo FFT — liniowe")
+axes_fr[1, 0].set_xlabel("Częstotliwość [Hz]")
+axes_fr[1, 0].set_ylabel("Amplituda")
+axes_fr[1, 0].grid(True, alpha=0.3)
+
+axes_fr[1, 1].plot(freqs_fr, mag_db_fr, linewidth=0.8, color='#3498db')
+axes_fr[1, 1].set_title("Widmo FFT — dB")
+axes_fr[1, 1].set_xlabel("Częstotliwość [Hz]")
+axes_fr[1, 1].set_ylabel("Amplituda [dB]")
+axes_fr[1, 1].grid(True, alpha=0.3)
+
+plt.tight_layout()
+st.pyplot(fig_frame_fft)
+
+st.subheader("Porównanie funkcji okienkowych")
+
+fig_win, axes_win = plt.subplots(len(WINDOWS), 2, figsize=(14, 3 * len(WINDOWS)))
+
+for idx, (wname, wfunc) in enumerate(WINDOWS.items()):
+    w = wfunc(params['frame_len'])
+    w_freqs, w_mag, w_mag_db, _, _ = compute_fft(w, sr, 'Prostokątne')
+
+    axes_win[idx, 0].plot(w, linewidth=1.2, color='#2ecc71')
+    axes_win[idx, 0].set_title(f"{wname} — dziedzina czasu")
+    axes_win[idx, 0].set_ylabel("Amplituda")
+    axes_win[idx, 0].set_xlim(0, len(w))
+    axes_win[idx, 0].grid(True, alpha=0.3)
+
+    axes_win[idx, 1].plot(w_freqs, w_mag_db, linewidth=0.8, color='#e74c3c')
+    axes_win[idx, 1].set_title(f"{wname} — widmo [dB]")
+    axes_win[idx, 1].set_ylabel("dB")
+    axes_win[idx, 1].grid(True, alpha=0.3)
+
+axes_win[-1, 0].set_xlabel("Próbka")
+axes_win[-1, 1].set_xlabel("Częstotliwość [Hz]")
+plt.tight_layout()
+st.pyplot(fig_win)
+
+st.subheader("Wpływ okna na widmo wybranej ramki")
+
+compare_windows = st.multiselect(
+    "Wybierz okna do porównania",
+    window_names,
+    default=window_names,
+    key="compare_win"
+)
+
+if compare_windows:
+    fig_cmp, (ax_cmp_t, ax_cmp_f) = plt.subplots(1, 2, figsize=(14, 5))
+    colors = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6']
+
+    for i, wname in enumerate(compare_windows):
+        f_fr, m_fr, m_db_fr, w_fr, _ = compute_fft_for_frame(
+            samples, sr, frame_idx, params['frame_len'], params['hop'], wname
+        )
+        color = colors[i % len(colors)]
+        ax_cmp_t.plot(w_fr, linewidth=0.8, color=color, label=wname, alpha=0.8)
+        ax_cmp_f.plot(f_fr, m_db_fr, linewidth=0.8, color=color, label=wname, alpha=0.8)
+
+    ax_cmp_t.set_title(f"Ramka {frame_idx} — po zastosowaniu okien")
+    ax_cmp_t.set_xlabel("Próbka")
+    ax_cmp_t.set_ylabel("Amplituda")
+    ax_cmp_t.legend()
+    ax_cmp_t.grid(True, alpha=0.3)
+
+    ax_cmp_f.set_title(f"Ramka {frame_idx} — widma po oknach [dB]")
+    ax_cmp_f.set_xlabel("Częstotliwość [Hz]")
+    ax_cmp_f.set_ylabel("dB")
+    ax_cmp_f.legend()
+    ax_cmp_f.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    st.pyplot(fig_cmp)
+
+st.markdown("---")
+st.subheader("Spektrogram")
+
+col_sp1, col_sp2, col_sp3 = st.columns(3)
+spec_frame_ms = col_sp1.slider("Długość ramki spektrogramu [ms]", 5, 100, 25, step=5, key="spec_frame")
+spec_overlap = col_sp2.slider("Overlap spektrogramu", 0.0, 0.95, 0.75, step=0.05, key="spec_overlap")
+spec_window = col_sp3.selectbox("Okno spektrogramu", window_names, index=2, key="spec_win")
+
+with st.spinner("Obliczanie spektrogramu..."):
+    spec, spec_times, spec_freqs = compute_spectrogram(
+        samples, sr, spec_frame_ms, spec_overlap, spec_window
+    )
+
+if spec is not None:
+    fig_spec, ax_spec = plt.subplots(figsize=(14, 5))
+    img = ax_spec.pcolormesh(spec_times, spec_freqs, spec, shading='auto', cmap='inferno')
+    ax_spec.set_xlabel("Czas [s]")
+    ax_spec.set_ylabel("Częstotliwość [Hz]")
+    ax_spec.set_title(f"Spektrogram (okno: {spec_window}, ramka: {spec_frame_ms} ms, overlap: {spec_overlap})")
+    plt.colorbar(img, ax=ax_spec, label="dB")
+    plt.tight_layout()
+    st.pyplot(fig_spec)
+
+st.markdown("---")
+st.subheader("Częstotliwość krtaniowa (Cepstrum)")
+
+col_cp1, col_cp2 = st.columns(2)
+cep_f_min = col_cp1.number_input("F0 min (cepstrum) [Hz]", 50, 200, 50, step=10, key="cep_fmin")
+cep_f_max = col_cp2.number_input("F0 max (cepstrum) [Hz]", 200, 1000, 500, step=50, key="cep_fmax")
+
+with st.spinner("Obliczanie F0 z cepstrum..."):
+    cep_f0, cep_times = compute_cepstral_f0(
+        samples, sr, frame_ms, overlap, 'Hamminga', cep_f_min, cep_f_max
+    )
+
+if cep_f0 is not None:
+    fig_cep_f0, ax_cep_f0 = plt.subplots(figsize=(14, 4))
+    mask_cep = cep_f0 > 0
+    ax_cep_f0.scatter(cep_times[mask_cep], cep_f0[mask_cep], s=4, color='#9b59b6', alpha=0.7, label='Cepstrum F0')
+
+    if f0_auto is not None:
+        mask_a2 = f0_auto > 0
+        ax_cep_f0.scatter(ft[mask_a2], f0_auto[mask_a2], s=4, color='#e74c3c', alpha=0.4, label='Autokorelacja F0')
+
+    ax_cep_f0.set_xlabel("Czas [s]")
+    ax_cep_f0.set_ylabel("F0 [Hz]")
+    ax_cep_f0.set_title("Porównanie F0: Cepstrum vs Autokorelacja")
+    ax_cep_f0.legend()
+    ax_cep_f0.grid(True, alpha=0.3)
+    ax_cep_f0.set_xlim(0, duration)
+    st.pyplot(fig_cep_f0)
+
+    voiced_cep = cep_f0[cep_f0 > 0]
+    if len(voiced_cep) > 0:
+        st.markdown(f"**Cepstrum** — średnia F0: {np.mean(voiced_cep):.1f} Hz, "
+                    f"mediana: {np.median(voiced_cep):.1f} Hz, "
+                    f"zakres: {np.min(voiced_cep):.1f}–{np.max(voiced_cep):.1f} Hz")
+
+    st.subheader("Cepstrum wybranej ramki")
+    cep_frame_idx = st.slider("Ramka (cepstrum)", 0, params['num_frames'] - 1, 0, step=1, key="cep_fr")
+
+    cep_start = cep_frame_idx * params['hop']
+    cep_end = cep_start + params['frame_len']
+    cep_frame = samples[cep_start:cep_end]
+
+    windowed_cep, _ = apply_window(cep_frame, 'Hamminga')
+    cepstrum_vals, quefrency = compute_cepstrum(windowed_cep, sr)
+
+    q_min_plot = int(sr / cep_f_max)
+    q_max_plot = min(len(cepstrum_vals) - 1, int(sr / cep_f_min))
+
+    fig_cep_detail, (ax_cd1, ax_cd2) = plt.subplots(1, 2, figsize=(14, 4))
+
+    ax_cd1.plot(quefrency * 1000, cepstrum_vals, linewidth=0.8, color='#9b59b6')
+    ax_cd1.set_xlabel("Quefrency [ms]")
+    ax_cd1.set_ylabel("Amplituda")
+    ax_cd1.set_title(f"Cepstrum — ramka {cep_frame_idx}")
+    ax_cd1.set_xlim(0, quefrency[len(quefrency)//2] * 1000)
+    ax_cd1.grid(True, alpha=0.3)
+
+    ax_cd2.plot(quefrency[q_min_plot:q_max_plot+1] * 1000,
+                cepstrum_vals[q_min_plot:q_max_plot+1],
+                linewidth=1.0, color='#e74c3c')
+    ax_cd2.set_xlabel("Quefrency [ms]")
+    ax_cd2.set_ylabel("Amplituda")
+    ax_cd2.set_title(f"Cepstrum — zakres F0 ({cep_f_min}–{cep_f_max} Hz)")
+    ax_cd2.grid(True, alpha=0.3)
+
+    if q_min_plot < q_max_plot:
+        peak_q = q_min_plot + np.argmax(cepstrum_vals[q_min_plot:q_max_plot+1])
+        peak_f0 = sr / peak_q if peak_q > 0 else 0
+        ax_cd2.axvline(x=quefrency[peak_q] * 1000, color='black', linestyle='--', alpha=0.5)
+        st.markdown(f"Peak quefrency: **{quefrency[peak_q]*1000:.2f} ms** → F0 = **{peak_f0:.1f} Hz**")
+
+    plt.tight_layout()
+    st.pyplot(fig_cep_detail)
