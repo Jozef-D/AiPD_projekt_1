@@ -3,57 +3,45 @@ import pandas as pd
 import math
 
 
-def manual_dft(frame):
-    N = len(frame)
-    window = [0.5 * (1 - math.cos(2 * math.pi * n / (N - 1))) for n in range(N)]
-    frame = [frame[n] * window[n] for n in range(N)]
 
-    half = N // 2 + 1
-    spectrum = []
-    for k in range(half):
-        re = 0.0
-        im = 0.0
-        for n in range(N):
-            angle = 2 * math.pi * k * n / N
-            re += frame[n] * math.cos(angle)
-            im -= frame[n] * math.sin(angle)
-        spectrum.append((re ** 2 + im ** 2) ** 0.5)
-    return spectrum
+
+def fft_dft(frame):
+    N = len(frame)
+    window = 0.5 * (1 - np.cos(2 * np.pi * np.arange(N) / (N - 1)))
+    frame = np.array(frame) * window
+
+    spectrum = np.fft.rfft(frame)
+    return np.abs(spectrum)
 
 
 def spectral_centroid(frame, sample_rate):
     N = len(frame)
-    spectrum = manual_dft(frame)
+    spectrum = fft_dft(frame)
 
-    num = 0.0
-    den = 0.0
-    for k in range(len(spectrum)):
-        freq = k * sample_rate / N
-        num += freq * spectrum[k]
-        den += spectrum[k]
+    freqs = np.fft.rfftfreq(N, d=1.0 / sample_rate)
 
-    return num / den if den > 0 else 0.0
+    den = np.sum(spectrum)
+    return np.sum(freqs * spectrum) / den if den > 0 else 0.0
 
 
 def spectral_rolloff(frame, sample_rate, threshold=0.85):
     N = len(frame)
-    spectrum = manual_dft(frame)
+    spectrum = fft_dft(frame)
 
-    total = sum(spectrum)
+    total = np.sum(spectrum)
     if total == 0:
         return 0.0
 
-    cumsum = 0.0
-    for k in range(len(spectrum)):
-        cumsum += spectrum[k]
-        if cumsum >= threshold * total:
-            return k * sample_rate / N
+    freqs = np.fft.rfftfreq(N, d=1.0 / sample_rate)
 
-    return (len(spectrum) - 1) * sample_rate / N
+    cumsum = np.cumsum(spectrum)
+    indices = np.where(cumsum >= threshold * total)[0]
+
+    return freqs[indices[0]] if len(indices) > 0 else freqs[-1]
+
 
 def spectral_flatness(frame, eps=1e-10):
-    spectrum = manual_dft(frame)
-    spectrum = np.array(spectrum) + eps
+    spectrum = fft_dft(frame) + eps
 
     if np.max(spectrum) < 1e-6:
         return 0.0
@@ -220,3 +208,69 @@ def parameters_to_csv(samples: np.ndarray, sample_rate, frame_ms=20, overlap=0.5
     if f0 is not None:
         df['f0'] = f0
     return df
+
+
+
+
+"""
+# stare funkcje do ft (ręczna implementacja, bardzo powolne)
+def manual_dft(frame):
+    N = len(frame)
+    window = [0.5 * (1 - math.cos(2 * math.pi * n / (N - 1))) for n in range(N)]
+    frame = [frame[n] * window[n] for n in range(N)]
+
+    half = N // 2 + 1
+    spectrum = []
+    for k in range(half):
+        re = 0.0
+        im = 0.0
+        for n in range(N):
+            angle = 2 * math.pi * k * n / N
+            re += frame[n] * math.cos(angle)
+            im -= frame[n] * math.sin(angle)
+        spectrum.append((re ** 2 + im ** 2) ** 0.5)
+    return spectrum
+
+
+def spectral_centroid(frame, sample_rate):
+    N = len(frame)
+    spectrum = manual_dft(frame)
+
+    num = 0.0
+    den = 0.0
+    for k in range(len(spectrum)):
+        freq = k * sample_rate / N
+        num += freq * spectrum[k]
+        den += spectrum[k]
+
+    return num / den if den > 0 else 0.0
+
+
+def spectral_rolloff(frame, sample_rate, threshold=0.85):
+    N = len(frame)
+    spectrum = manual_dft(frame)
+
+    total = sum(spectrum)
+    if total == 0:
+        return 0.0
+
+    cumsum = 0.0
+    for k in range(len(spectrum)):
+        cumsum += spectrum[k]
+        if cumsum >= threshold * total:
+            return k * sample_rate / N
+
+    return (len(spectrum) - 1) * sample_rate / N
+
+def spectral_flatness(frame, eps=1e-10):
+    spectrum = manual_dft(frame)
+    spectrum = np.array(spectrum) + eps
+
+    if np.max(spectrum) < 1e-6:
+        return 0.0
+
+    geo_mean = np.exp(np.mean(np.log(spectrum)))
+    arith_mean = np.mean(spectrum)
+
+    return geo_mean / arith_mean
+"""
