@@ -324,7 +324,7 @@ if clip_params is not None and params is not None:
 
     st.markdown("#### Klasyfikacja muzyka / mowa")
 
-    score = 0  # ujemny = muzyka, dodatni = mowa ( przynajmniej w teorii)
+    score = 0  # dodatni = muzyka, ujemny = mowa ( przynajmniej w teorii)
 
     if clip_params['lster'] > 0.13:
         score -= 1
@@ -369,18 +369,18 @@ if clip_params is not None and params is not None:
             score -= 2
 
 
-    st.metric("Wynik klasyfikacji", score, help="> 0 = mowa, < 0 = muzyka")
+    st.metric("Wynik klasyfikacji", score, help="< 0 = mowa, > 0 = muzyka")
 
     if score <= -2:
 
-        st.info("Sygnał przypomina **muzykę**")
+        st.info("Sygnał przypomina **mowę**")
     elif score >= 2:
-        st.success("Sygnał przypomina **mowę**")
+        st.success("Sygnał przypomina **muzykę**")
     elif score < 0:
 
-        st.info("Prawdopodobnie **muzyka** (niskie zaufanie)")
+        st.info("Prawdopodobnie **mowa** (niskie zaufanie)")
     elif score > 0:
-        st.success("Prawdopodobnie **mowa** (niskie zaufanie)")
+        st.success("Prawdopodobnie **muzyka** (niskie zaufanie)")
     else:
         st.warning("Sygnał **niejednoznaczny**")
 
