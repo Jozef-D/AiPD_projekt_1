@@ -1,0 +1,23 @@
+Widmo FFT całego sygnału
+Widmo FFT każdej litery
+Wpływ okna na widmo każdej litery
+Cepstrum każdej litery
+
+
+
+Robimy projekt z analizy i przetwarzania dźwięku. w tej chwili przyglądamy się parametrom w dziedzinie dźwięku dla spółgłosek/samogłosek. patrzyliśmy konkretnie na dźwięk abe, który potem podzieliliśmy na części. poniżej znajdują się wyniki i wykresy. czy możesz zrobić jakąś analizę i wnioski i potem do latex wpisać?
+
+abe a formants
+F1: 720.0 Hz
+F2: 760.0 Hz
+F3: 850.0 Hz
+
+abe b formants
+F1: 277.8 Hz
+F2: 333.4 Hz
+F3: 355.6 Hz
+
+abe e formants
+F1: 389.0 Hz
+F2: 511.2 Hz
+F3: 622.4 Hz

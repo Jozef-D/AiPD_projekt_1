@@ -1,0 +1,21 @@
+\babel@toc {nil}{}\relax 
+\contentsline {section}{\numberline {1}Opis aplikacji}{2}{section.1}%
+\contentsline {subsection}{\numberline {1.1}Struktura projektu}{2}{subsection.1.1}%
+\contentsline {subsection}{\numberline {1.2}U\.zyte biblioteki}{2}{subsection.1.2}%
+\contentsline {section}{\numberline {2}Opis metod}{2}{section.2}%
+\contentsline {subsection}{\numberline {2.1}Segmentacja sygnału}{2}{subsection.2.1}%
+\contentsline {subsection}{\numberline {2.2}Transformata Fouriera (FFT)}{3}{subsection.2.2}%
+\contentsline {subsection}{\numberline {2.3}Funkcje okienkowe}{3}{subsection.2.3}%
+\contentsline {subsection}{\numberline {2.4}Widmo dla całego sygnału i pojedynczej ramki}{4}{subsection.2.4}%
+\contentsline {subsection}{\numberline {2.5}Spektrogram}{4}{subsection.2.5}%
+\contentsline {subsection}{\numberline {2.6}Cepstrum i estymacja częstotliwości podstawowej}{5}{subsection.2.6}%
+\contentsline {subsection}{\numberline {2.7}Estymacja formantów}{5}{subsection.2.7}%
+\contentsline {subsection}{\numberline {2.8}Interaktywność aplikacji}{5}{subsection.2.8}%
+\contentsline {section}{\numberline {3}Różnica między spółgłoskami a samogłoskami.}{6}{section.3}%
+\contentsline {subsection}{\numberline {3.1}Wyniki pomiarów}{6}{subsection.3.1}%
+\contentsline {subsection}{\numberline {3.2}Analiza wyników}{7}{subsection.3.2}%
+\contentsline {subsubsection}{\numberline {3.2.1}Porównanie segmentów}{8}{subsubsection.3.2.1}%
+\contentsline {subsubsection}{\numberline {3.2.2}Analiza spektrogramu i cepstrum}{9}{subsubsection.3.2.2}%
+\contentsline {subsubsection}{\numberline {3.2.3}Wpływ funkcji okna}{10}{subsubsection.3.2.3}%
+\contentsline {subsection}{\numberline {3.3}Wnioski}{11}{subsection.3.3}%
+\contentsline {section}{\numberline {4}Podsumowanie}{11}{section.4}%

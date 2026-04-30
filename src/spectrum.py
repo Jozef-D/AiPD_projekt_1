@@ -2,6 +2,8 @@ import numpy as np
 from .windows import apply_window, WINDOWS
 
 
+
+
 def compute_fft(signal, sample_rate, window_name='Prostokątne'):
     windowed, window = apply_window(signal, window_name)
     n = len(windowed)
@@ -15,9 +17,7 @@ def compute_fft(signal, sample_rate, window_name='Prostokątne'):
 def compute_fft_for_frame(samples, sample_rate, frame_index, frame_len, hop,
                           window_name='Prostokątne'):
     start = frame_index * hop
-    end = start + frame_len
-    if end > len(samples):
-        end = len(samples)
+    end = min(start + frame_len, len(samples))
     frame = samples[start:end]
     return compute_fft(frame, sample_rate, window_name)
 
@@ -31,42 +31,59 @@ def compute_spectrogram(samples, sample_rate, frame_ms=20, overlap=0.5,
     if num_frames == 0:
         return None, None, None
 
-    n_fft = frame_len
-    n_bins = n_fft // 2
-
+    n_bins = frame_len // 2
+    w = WINDOWS[window_name](frame_len)
     spectrogram = np.zeros((n_bins, num_frames))
-    window_func = WINDOWS[window_name]
-    w = window_func(frame_len)
 
     for i in range(num_frames):
         start = i * hop
-        end = start + frame_len
-        frame = samples[start:end].copy()
-
-        for j in range(frame_len):
-            frame[j] = frame[j] * w[j]
-
-        fft_result = np.fft.fft(frame)
-        mag = np.abs(fft_result[:n_bins])
+        frame = samples[start:start + frame_len] * w
+        mag = np.abs(np.fft.fft(frame)[:n_bins])
         spectrogram[:, i] = 20 * np.log10(mag + 1e-10)
 
     times = np.arange(num_frames) * hop / sample_rate
-    freqs = np.arange(n_bins) * sample_rate / n_fft
-
+    freqs = np.arange(n_bins) * sample_rate / frame_len
     return spectrogram, times, freqs
 
 
-def compute_cepstrum(frame, sample_rate):
-    n = len(frame)
-    fft_result = np.fft.fft(frame)
-    log_spectrum = np.log(np.abs(fft_result) + 1e-10)
+def compute_cepstrum(frame, sample_rate, window_name='Hamminga'):
+    w = WINDOWS[window_name](len(frame))
+    windowed = frame * w
+    log_spectrum = np.log(np.abs(np.fft.fft(windowed)) + 1e-10)
     cepstrum = np.fft.ifft(log_spectrum).real
-    quefrency = np.arange(n) / sample_rate
+    quefrency = np.arange(len(frame)) / sample_rate
     return cepstrum, quefrency
 
 
+def compute_formants_from_spectrum(frame, sample_rate, window_name='Hamminga',
+                                   smooth_k=50, f_min=90, f_max=4000,
+                                   n_formants=4):
+
+    freqs, mag, _, _, _ = compute_fft(frame, sample_rate, window_name)
+
+    kernel = np.ones(smooth_k) / smooth_k
+    smooth = np.convolve(mag, kernel, mode='same')
+
+    is_peak = (
+        (smooth[1:-1] > smooth[:-2]) &
+        (smooth[1:-1] > smooth[2:])
+    )
+    peak_indices = np.where(is_peak)[0] + 1
+
+    candidates = [
+        (freqs[i], smooth[i])
+        for i in peak_indices
+        if f_min < freqs[i] < f_max
+    ]
+    candidates.sort(key=lambda x: -x[1])
+
+    formants = sorted([f for f, _ in candidates[:n_formants]])
+    return formants
+
+
 def compute_cepstral_f0(samples, sample_rate, frame_ms=20, overlap=0.5,
-                        window_name='Hamminga', f_min=50, f_max=500):
+                        window_name='Hamminga', f_min=50, f_max=500,
+                        threshold=0.01):
     frame_len = max(1, int(sample_rate * frame_ms / 1000))
     hop = max(1, int(frame_len * (1 - overlap)))
     num_frames = max(0, (len(samples) - frame_len) // hop + 1)
@@ -74,9 +91,7 @@ def compute_cepstral_f0(samples, sample_rate, frame_ms=20, overlap=0.5,
     if num_frames == 0:
         return None, None
 
-    window_func = WINDOWS[window_name]
-    w = window_func(frame_len)
-
+    w = WINDOWS[window_name](frame_len)
     q_min = int(sample_rate / f_max)
     q_max = min(frame_len - 1, int(sample_rate / f_min))
 
@@ -85,30 +100,20 @@ def compute_cepstral_f0(samples, sample_rate, frame_ms=20, overlap=0.5,
 
     for i in range(num_frames):
         start = i * hop
-        end = start + frame_len
-        frame = samples[start:end].copy()
+        frame = samples[start:start + frame_len] * w
 
-        for j in range(frame_len):
-            frame[j] = frame[j] * w[j]
+        times[i] = (start + start + frame_len) / 2.0 / sample_rate
 
-        times[i] = (start + end) / 2.0 / sample_rate
-
-        cepstrum, _ = compute_cepstrum(frame, sample_rate)
+        cepstrum, _ = compute_cepstrum(frame, sample_rate,
+                                        window_name='Hamminga')
 
         if q_min >= q_max or q_max >= len(cepstrum):
-            f0_array[i] = 0.0
             continue
 
-        best_q = q_min
-        best_val = -1e30
-        for q in range(q_min, q_max + 1):
-            if cepstrum[q] > best_val:
-                best_val = cepstrum[q]
-                best_q = q
+        region = cepstrum[q_min:q_max + 1]
+        best_local = int(np.argmax(region))
+        best_q = q_min + best_local
 
-        if best_val > 0.01:
-            f0_array[i] = sample_rate / best_q
-        else:
-            f0_array[i] = 0.0
+        f0_array[i] = sample_rate / best_q if cepstrum[best_q] > threshold else 0.0
 
     return f0_array, times

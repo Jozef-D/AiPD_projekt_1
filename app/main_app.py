@@ -23,7 +23,9 @@ from src import (
     compute_spectrogram,
     compute_cepstrum,
     compute_cepstral_f0,
+    compute_formants_from_spectrum,
 )
+
 
 st.set_page_config(page_title="Analiza audio", layout="wide")
 st.title("Analiza sygnału audio")
@@ -322,7 +324,7 @@ if clip_params is not None and params is not None:
 
     st.markdown("#### Klasyfikacja muzyka / mowa")
 
-    score = 0  # ujemny = mowa, dodatni = muzyka ( przynajmniej w teorii)
+    score = 0  # ujemny = muzyka, dodatni = mowa ( przynajmniej w teorii)
 
     if clip_params['lster'] > 0.13:
         score -= 1
@@ -367,16 +369,18 @@ if clip_params is not None and params is not None:
             score -= 2
 
 
-    st.metric("Wynik klasyfikacji", score, help="< 0 = mowa, > 0 = muzyka")
+    st.metric("Wynik klasyfikacji", score, help="> 0 = mowa, < 0 = muzyka")
 
     if score <= -2:
-        st.success("Sygnał przypomina **mowę**")
-    elif score >= 2:
+
         st.info("Sygnał przypomina **muzykę**")
+    elif score >= 2:
+        st.success("Sygnał przypomina **mowę**")
     elif score < 0:
-        st.success("Prawdopodobnie **mowa** (niskie zaufanie)")
-    elif score > 0:
+
         st.info("Prawdopodobnie **muzyka** (niskie zaufanie)")
+    elif score > 0:
+        st.success("Prawdopodobnie **mowa** (niskie zaufanie)")
     else:
         st.warning("Sygnał **niejednoznaczny**")
 
@@ -426,6 +430,20 @@ freqs_fr, mag_fr, mag_db_fr, windowed_fr, win_fr = compute_fft_for_frame(
 )
 
 frame_signal = samples[frame_start:frame_end]
+
+bin_size = sr / params['frame_len']
+smooth_k = int(500 / bin_size)
+
+formants = compute_formants_from_spectrum(frame_signal, sr, frame_window, smooth_k)
+
+st.markdown("### Wykryte formanty")
+st.markdown(
+    f"""
+    **F1:** {formants[0]:.1f} Hz  
+    **F2:** {formants[1]:.1f} Hz  
+    **F3:** {formants[2]:.1f} Hz  
+    """ if len(formants) >= 3 else "Brak wystarczających danych"
+)
 frame_time_ax = np.arange(len(frame_signal)) / sr + frame_time_start
 
 fig_frame_fft, axes_fr = plt.subplots(2, 2, figsize=(14, 7))
@@ -443,12 +461,16 @@ axes_fr[0, 1].set_ylabel("Amplituda")
 axes_fr[0, 1].grid(True, alpha=0.3)
 
 axes_fr[1, 0].plot(freqs_fr, mag_fr, linewidth=0.8, color='#e74c3c')
+for f in formants[:3]:
+    axes_fr[1, 0].axvline(x=f, linestyle='--', alpha=0.6)
 axes_fr[1, 0].set_title("Widmo FFT — liniowe")
 axes_fr[1, 0].set_xlabel("Częstotliwość [Hz]")
 axes_fr[1, 0].set_ylabel("Amplituda")
 axes_fr[1, 0].grid(True, alpha=0.3)
 
 axes_fr[1, 1].plot(freqs_fr, mag_db_fr, linewidth=0.8, color='#3498db')
+for f in formants[:3]:
+    axes_fr[1, 1].axvline(x=f, linestyle='--', alpha=0.6)
 axes_fr[1, 1].set_title("Widmo FFT — dB")
 axes_fr[1, 1].set_xlabel("Częstotliwość [Hz]")
 axes_fr[1, 1].set_ylabel("Amplituda [dB]")

@@ -46,11 +46,6 @@ WINDOWS = {
     'Blackmana': blackman,
 }
 
-
 def apply_window(signal, window_name):
-    n = len(signal)
-    w = WINDOWS[window_name](n)
-    result = np.zeros(n)
-    for i in range(n):
-        result[i] = signal[i] * w[i]
-    return result, w
+    w = WINDOWS[window_name](len(signal))
+    return signal * w, w
