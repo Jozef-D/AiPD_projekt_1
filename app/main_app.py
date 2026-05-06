@@ -604,8 +604,7 @@ if cep_f0 is not None:
     cep_end = cep_start + params['frame_len']
     cep_frame = samples[cep_start:cep_end]
 
-    windowed_cep, _ = apply_window(cep_frame, 'Hamminga')
-    cepstrum_vals, quefrency = compute_cepstrum(windowed_cep, sr)
+    cepstrum_vals, quefrency = compute_cepstrum(cep_frame, sr, apply_win=True, window_name='Hamminga')
 
     q_min_plot = int(sr / cep_f_max)
     q_max_plot = min(len(cepstrum_vals) - 1, int(sr / cep_f_min))

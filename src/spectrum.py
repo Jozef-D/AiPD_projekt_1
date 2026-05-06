@@ -46,12 +46,21 @@ def compute_spectrogram(samples, sample_rate, frame_ms=20, overlap=0.5,
     return spectrogram, times, freqs
 
 
-def compute_cepstrum(frame, sample_rate, window_name='Hamminga'):
-    w = WINDOWS[window_name](len(frame))
-    windowed = frame * w
-    log_spectrum = np.log(np.abs(np.fft.fft(windowed)) + 1e-10)
+def compute_cepstrum(frame, sample_rate, apply_win=True, window_name='Hamminga'):
+    if apply_win:
+        w = WINDOWS[window_name](len(frame))
+        windowed = frame * w
+    else:
+        windowed = frame
+    n_fft = 1
+    while n_fft < len(windowed):
+        n_fft *= 2
+    padded = np.zeros(n_fft)
+    padded[:len(windowed)] = windowed
+    fft_result = np.fft.fft(padded)
+    log_spectrum = np.log(np.abs(fft_result) + 1e-10)
     cepstrum = np.fft.ifft(log_spectrum).real
-    quefrency = np.arange(len(frame)) / sample_rate
+    quefrency = np.arange(n_fft) / sample_rate
     return cepstrum, quefrency
 
 
@@ -105,7 +114,7 @@ def compute_cepstral_f0(samples, sample_rate, frame_ms=20, overlap=0.5,
         times[i] = (start + start + frame_len) / 2.0 / sample_rate
 
         cepstrum, _ = compute_cepstrum(frame, sample_rate,
-                                        window_name='Hamminga')
+                                        apply_win=False)
 
         if q_min >= q_max or q_max >= len(cepstrum):
             continue
